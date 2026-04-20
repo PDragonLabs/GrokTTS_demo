@@ -38,7 +38,7 @@ A beautiful single-file HTML demo that lets you **test and tune Grok's Text-to-S
 
 ## 🚀 Live Demo
 
-Try it here: [https://github.com/PDragonLabs/GrokTTS_demo](https://github.com/PDragonLabs/GrokTTS_demo)
+Try it here: [https://github.com/PDragonLabs/GrokTTS_demo](https://pdragonlabs.github.io/GrokTTS_demo/)
 
 ## 📸 Preview
 
