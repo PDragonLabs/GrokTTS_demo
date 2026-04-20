@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grok TTS Voice Tuner + Browser Fallback</title>
+  <style>
+    body { font-family: system-ui; padding: 20px; max-width: 900px; margin: auto; line-height: 1.5; }
+    h1, h2 { margin-top: 30px; }
+    label { display: block; margin: 12px 0 6px; font-weight: bold; }
+    input[type="range"], select, input[type="text"], textarea { width: 100%; }
+    button { padding: 12px 20px; margin: 8px 4px; font-size: 16px; cursor: pointer; }
+    .section { border: 1px solid #ddd; padding: 15px; margin: 20px 0; border-radius: 8px; }
+    .value { font-family: monospace; color: #0066cc; }
+    #output { margin-top: 15px; background: #f9f9f9; padding: 15px; border-radius: 6px; min-height: 50px; }
+  </style>
+</head>
+<body>
+  <h1>Grok TTS Voice Tuner (with Browser Fallback)</h1>
+  <p>Enter your parameters below, then test with browser or Grok TTS.</p>
+
+  <!-- Grok Access Parameters -->
+  <div class="section">
+    <h2>Grok Access Parameters</h2>
+    <label>Grok API Base URL (default is fine):</label>
+    <input id="apiBase" type="text" value="https://api.x.ai" />
+
+    <label>Ephemeral Client Secret or Token (for client-side use):</label>
+    <input id="token" type="text" placeholder="xai-client-secret.your_token_here or full Bearer token" />
+
+    <label>Voice:</label>
+    <select id="grokVoice">
+      <option value="eve">Eve (energetic, upbeat - default)</option>
+      <option value="ara">Ara (warm, friendly)</option>
+      <option value="rex">Rex (confident, professional)</option>
+      <option value="leo">Leo</option>
+      <option value="sal">Sal</option>
+    </select>
+
+    <label>Language (BCP-47 or 'auto'):</label>
+    <input id="language" type="text" value="en" placeholder="en, es-ES, auto" />
+  </div>
+
+  <!-- Text Input -->
+  <div class="section">
+    <h2>Text to Speak</h2>
+    <textarea id="text" rows="6" style="width:100%;">
+Hello! [laugh] This is a test with Grok TTS.
+<whisper>Can you hear this secret?</whisper>
+<emphasis>I really like how this sounds!</emphasis>
+<slow>Let me explain slowly...</slow>
+    </textarea>
+  </div>
+
+  <!-- Browser Tuning (fallback) -->
+  <div class="section">
+    <h2>Browser TTS Tuning (Free Fallback)</h2>
+    <label>Voice:</label>
+    <select id="browserVoice"></select>
+
+    <label>Speed (Rate): <span id="rateValue" class="value">1.0</span></label>
+    <input type="range" id="rate" min="0.5" max="2" step="0.1" value="1">
+
+    <label>Pitch: <span id="pitchValue" class="value">1.0</span></label>
+    <input type="range" id="pitch" min="0.5" max="2" step="0.1" value="1">
+
+    <label>Volume: <span id="volumeValue" class="value">1.0</span></label>
+    <input type="range" id="volume" min="0" max="1" step="0.05" value="1">
+  </div>
+
+  <button id="speakBrowser">🔊 Speak with Browser TTS</button>
+  <button id="speakGrok">🚀 Speak with Grok TTS</button>
+  <button id="stop">⏹️ Stop All</button>
+
+  <div id="output">Output / Status will appear here...</div>
+
+  <script>
+    // Browser TTS setup
+    const synth = window.speechSynthesis;
+    let browserVoices = [];
+    const browserVoiceSelect = document.getElementById('browserVoice');
+
+    function loadBrowserVoices() {
+      browserVoices = synth.getVoices();
+      browserVoiceSelect.innerHTML = '';
+      browserVoices.forEach((voice, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = `${voice.name} (${voice.lang})`;
+        browserVoiceSelect.appendChild(opt);
+      });
+    }
+    synth.onvoiceschanged = loadBrowserVoices;
+    loadBrowserVoices();
+
+    // Sliders
+    document.getElementById('rate').oninput = () => document.getElementById('rateValue').textContent = parseFloat(document.getElementById('rate').value).toFixed(1);
+    document.getElementById('pitch').oninput = () => document.getElementById('pitchValue').textContent = parseFloat(document.getElementById('pitch').value).toFixed(1);
+    document.getElementById('volume').oninput = () => document.getElementById('volumeValue').textContent = parseFloat(document.getElementById('volume').value).toFixed(1);
+
+    // Browser Speak
+    document.getElementById('speakBrowser').onclick = () => {
+      const text = document.getElementById('text').value.trim();
+      if (!text) return;
+      synth.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      const selVoice = browserVoices[browserVoiceSelect.value];
+      if (selVoice) utterance.voice = selVoice;
+      utterance.rate = parseFloat(document.getElementById('rate').value);
+      utterance.pitch = parseFloat(document.getElementById('pitch').value);
+      utterance.volume = parseFloat(document.getElementById('volume').value);
+      synth.speak(utterance);
+      document.getElementById('output').textContent = 'Speaking with Browser TTS...';
+    };
+
+    // Grok TTS (REST call)
+    document.getElementById('speakGrok').onclick = async () => {
+      const token = document.getElementById('token').value.trim();
+      const base = document.getElementById('apiBase').value.trim() || 'https://api.x.ai';
+      const voice = document.getElementById('grokVoice').value;
+      const lang = document.getElementById('language').value.trim() || 'en';
+      const text = document.getElementById('text').value.trim();
+
+      if (!text) {
+        document.getElementById('output').textContent = '❌ Please enter some text.';
+        return;
+      }
+      if (!token) {
+        document.getElementById('output').textContent = '❌ Please enter your Ephemeral Client Secret or Token.';
+        return;
+      }
+
+      const url = `${base}/v1/tts`;
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`
+      };
+
+      const body = {
+        text: text,
+        voice: voice,
+        language: lang,
+        // Optional: format: "mp3" (default), "wav", etc.
+      };
+
+      document.getElementById('output').textContent = 'Calling Grok TTS...';
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify(body)
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+
+        const blob = await res.blob();
+        const audioUrl = URL.createObjectURL(blob);
+        const audio = new Audio(audioUrl);
+        audio.play();
+        document.getElementById('output').innerHTML = `✅ Grok TTS playing (<strong>${voice}</strong> voice). <br>Used tags in your text for expressiveness.`;
+      } catch (err) {
+        document.getElementById('output').textContent = `❌ Error: ${err.message}`;
+        console.error(err);
+      }
+    };
+
+    document.getElementById('stop').onclick = () => {
+      synth.cancel();
+      document.getElementById('output').textContent = 'Stopped.';
+    };
+  </script>
+</body>
+</html>
